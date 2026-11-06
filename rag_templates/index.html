@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG Studio — Research & Writing</title>
+<style>
+:root{color-scheme:dark;--bg:#0b111b;--surface:#141d2a;--edge:#293447;--ink:#eff4fb;--muted:#a0adbe;--accent:#88d6c0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}button,input,textarea{font:inherit}button{cursor:pointer;background:#243348;color:var(--ink);border:1px solid #3a4d62;border-radius:8px;padding:9px 13px}button.primary{background:#196b5b;border-color:#298978}button:hover{filter:brightness(1.15)}button:disabled{opacity:.5;cursor:wait}input,textarea{background:#0e1724;border:1px solid var(--edge);border-radius:8px;color:var(--ink);padding:10px;width:100%;outline:none}textarea{resize:vertical}input:focus,textarea:focus{border-color:var(--accent)}header{padding:16px 24px;border-bottom:1px solid var(--edge);display:flex;align-items:center;justify-content:space-between;gap:12px}h1{font-size:19px;letter-spacing:.01em;margin:0}h2{font-size:14px;font-weight:650;margin:0 0 12px}p{margin:8px 0;color:var(--muted)}small,.muted{color:var(--muted)}.layout{display:grid;grid-template-columns:290px minmax(300px,1fr) 340px;gap:16px;padding:16px;max-width:1800px;margin:auto;min-height:calc(100vh - 76px)}.panel{background:var(--surface);border:1px solid var(--edge);border-radius:13px;padding:16px;min-width:0}.stack{display:flex;flex-direction:column;gap:12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.grow{flex:1}.editor{min-height:68vh;line-height:1.7;font-size:15px}.results{max-height:55vh;overflow:auto}.result{border-bottom:1px solid var(--edge);padding:12px 0}.result strong{color:var(--accent)}.result pre{white-space:pre-wrap;word-break:break-word;font:12px/1.5 system-ui;color:var(--muted);margin:6px 0}.pill{background:#22342e;color:var(--accent);border-radius:99px;padding:4px 9px;font-size:12px}.msg{min-height:25px;color:var(--accent);font-size:12px;white-space:pre-wrap}.spaced{margin-top:18px}.tiny{font-size:12px}.danger{color:#f4a4a4}.fileInput{font-size:12px}.tag{border:1px solid var(--edge);border-radius:8px;padding:8px;color:var(--muted);font-size:12px}.footer{font-size:11px;color:var(--muted);margin-top:20px}@media(max-width:1100px){.layout{grid-template-columns:260px minmax(300px,1fr)}.right{grid-column:1/-1}}@media(max-width:650px){.layout{display:flex;flex-direction:column;padding:10px}.editor{min-height:45vh}header{padding:13px}}
+</style>
+</head>
+<body>
+<header><h1>◈ RAG Studio <span class="muted" style="font-weight:400">/ Scientific writing</span></h1><span class="pill" id="libraryState">Library not connected</span></header>
+<main class="layout">
+<section class="panel stack">
+  <div><h2>Reference library</h2><p class="tiny">One persistent OpenAI search index for your PDF collection.</p></div>
+  <button class="primary" id="connectBtn">Create / reconnect library</button>
+  <label class="tiny muted">Library ID (saved in this browser)</label><input id="storeId" placeholder="vs_...">
+  <div id="counts" class="tag">No library selected</div>
+  <div class="spaced"><h2>Add PDFs</h2><input class="fileInput" type="file" id="files" multiple accept="application/pdf,.pdf"><p class="tiny">Select many PDFs at once. Files are indexed one at a time to keep uploads reliable.</p><button id="uploadBtn">Upload and index</button><div class="msg" id="uploadStatus"></div></div>
+  <div class="spaced"><h2>Library search</h2><input id="searchQuery" placeholder="Search terms, method, or mechanism"><button id="searchBtn">Search references</button></div>
+  <p class="footer">PDFs and their search index are stored by OpenAI. Store your library ID securely. Text extraction may require manual verification for complex equations, tables, and scans.</p>
+</section>
+<section class="panel stack">
+  <div class="row"><h2 class="grow">Document editor</h2><button id="newBtn">New</button><button id="exportBtn">Export .md</button></div>
+  <input id="title" value="Untitled research document" aria-label="Document title">
+  <textarea id="editor" class="editor" placeholder="# Research document&#10;&#10;Start writing here, or generate a source-supported draft using the assistant."></textarea>
+  <div class="row"><span class="muted tiny" id="saveState">Autosaved locally</span><span class="grow"></span><span class="muted tiny" id="wordCount">0 words</span></div>
+</section>
+<section class="panel stack right">
+  <div><h2>AI writing assistant</h2><p class="tiny">Generate, revise, compare or synthesize using your indexed library.</p></div>
+  <textarea id="task" rows="6" placeholder="Example: Draft an evidence-based technical review of electrochemical detection methods, with uncertainties and file citations."></textarea>
+  <div class="row"><button class="primary" id="writeBtn">Generate with sources</button><button id="appendBtn" disabled>Append result</button><button id="replaceBtn" disabled>Replace draft</button></div>
+  <div class="msg" id="writeStatus"></div>
+  <textarea id="generated" rows="11" placeholder="Generated material will appear here for review before inserting into the document."></textarea>
+  <h2 class="spaced">Sources / search findings</h2>
+  <div id="results" class="results muted tiny">Search results and cited source filenames appear here.</div>
+  <p class="footer">Citation markers may identify files rather than exact pages. Verify source text and page-level support against original PDFs before publication.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const saved=key=>localStorage.getItem('ragstudio:'+key)||'';
+$('storeId').value=saved('store');
+$('title').value=saved('title')||'Untitled research document';
+$('editor').value=saved('editor');
+function update(){localStorage.setItem('ragstudio:store',$('storeId').value.trim());localStorage.setItem('ragstudio:title',$('title').value);localStorage.setItem('ragstudio:editor',$('editor').value);$('wordCount').textContent=($('editor').value.trim().match(/\S+/g)||[]).length+' words';$('saveState').textContent='Autosaved in this browser';}
+['storeId','title','editor'].forEach(id=>$(id).addEventListener('input',update));update();
+async function api(url,opt={}){const r=await fetch(url,opt);let data;try{data=await r.json()}catch{throw Error('Server returned '+r.status)}if(!r.ok)throw Error(data.error||'Request failed');return data}
+function json(data){return {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}}
+function store(){const v=$('storeId').value.trim();if(!v)throw Error('Create or reconnect a library first.');return v}
+async function connect(){const id=$('storeId').value.trim();$('connectBtn').disabled=true;try{const v=await api('/api/library',json({store_id:id||null}));$('storeId').value=v.id;update();$('counts').textContent=JSON.stringify(v.counts);$('libraryState').textContent=(v.counts.completed||0)+' PDFs indexed';}catch(e){$('counts').textContent=e.message}finally{$('connectBtn').disabled=false}}
+$('connectBtn').onclick=connect;if($('storeId').value)connect();
+$('uploadBtn').onclick=async()=>{const files=Array.from($('files').files);if(!files.length)return;$('uploadBtn').disabled=true;let ok=0;try{const id=store();for(let i=0;i<files.length;i++){const f=files[i];$('uploadStatus').textContent='Indexing '+(i+1)+' / '+files.length+': '+f.name;const fd=new FormData();fd.append('store_id',id);fd.append('file',f);try{await api('/api/upload',{method:'POST',body:fd});ok++}catch(e){$('uploadStatus').textContent+='\nFailed: '+e.message;break;}}$('uploadStatus').textContent+='\nIndexed '+ok+' / '+files.length;await connect()}catch(e){$('uploadStatus').textContent=e.message}finally{$('uploadBtn').disabled=false}};
+$('searchBtn').onclick=async()=>{const b=$('searchBtn');b.disabled=true;$('results').textContent='Searching…';try{const x=await api('/api/search',json({store_id:store(),query:$('searchQuery').value}));$('results').innerHTML=(x.results||[]).map(r=>'<div class="result"><strong>'+safe(r.filename)+'</strong> <span class="muted">score '+r.score+'</span><pre>'+safe(r.text)+'</pre></div>').join('')||'No results.'}catch(e){$('results').textContent=e.message}finally{b.disabled=false}};
+$('writeBtn').onclick=async()=>{const b=$('writeBtn');b.disabled=true;$('writeStatus').textContent='Reading sources and generating…';try{const x=await api('/api/write',json({store_id:store(),task:$('task').value,draft:$('editor').value}));$('generated').value=x.text;$('writeStatus').textContent='Draft generated. Review citations before using.';$('appendBtn').disabled=false;$('replaceBtn').disabled=false;$('results').innerHTML='<strong>Cited PDFs</strong><br>'+((x.citations||[]).map(c=>'<div class="result">'+safe(c.filename)+'</div>').join('')||'No file citations returned; verify evidence manually.')}catch(e){$('writeStatus').textContent=e.message}finally{b.disabled=false}};
+$('appendBtn').onclick=()=>{$('editor').value+='\n\n'+$('generated').value;update()};
+$('replaceBtn').onclick=()=>{if(confirm('Replace the current editor content with the generated result?')){$('editor').value=$('generated').value;update()}};
+$('newBtn').onclick=()=>{if(confirm('Start a new local draft? Export your current document first if needed.')){$('title').value='Untitled research document';$('editor').value='';update()}};
+$('exportBtn').onclick=()=>{const blob=new Blob(['# '+$('title').value+'\n\n'+$('editor').value],{type:'text/markdown;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=($('title').value.replace(/[^a-z0-9-_]+/gi,'-')||'draft')+'.md';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+</script>
+</body></html>
